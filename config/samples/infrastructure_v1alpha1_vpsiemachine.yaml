@@ -1,0 +1,12 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VpsieMachine
+metadata:
+  labels:
+    app.kubernetes.io/name: vpsiemachine
+    app.kubernetes.io/instance: vpsiemachine-sample
+    app.kubernetes.io/part-of: cluster-api-provider-vpsie
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cluster-api-provider-vpsie
+  name: vpsiemachine-sample
+spec:
+  # TODO(user): Add fields here

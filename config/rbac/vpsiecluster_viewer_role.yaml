@@ -1,0 +1,27 @@
+# permissions for end users to view vpsieclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: vpsiecluster-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: cluster-api-provider-vpsie
+    app.kubernetes.io/part-of: cluster-api-provider-vpsie
+    app.kubernetes.io/managed-by: kustomize
+  name: vpsiecluster-viewer-role
+rules:
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - vpsieclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - vpsieclusters/status
+  verbs:
+  - get
