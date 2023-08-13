@@ -53,6 +53,121 @@ spec:
                 description: NetworkSpec encapsulates all things related to Vpsie
                   network.
                 properties:
+                  apiServerLoadbalancers:
+                    description: LoadBalancer configuration
+                    properties:
+                      algorithm:
+                        description: It must be either "round_robin" or "least_connections".
+                          The default value is "round_robin".
+                        enum:
+                        - round_robin
+                        - least_connections
+                        type: string
+                      dcIdentifier:
+                        type: string
+                      domains:
+                        items:
+                          properties:
+                            backPort:
+                              type: string
+                            backends:
+                              properties:
+                                ip:
+                                  type: string
+                                vmIdentifier:
+                                  type: string
+                              type: object
+                            domainId:
+                              type: string
+                            domainName:
+                              type: string
+                          type: object
+                        type: array
+                      healthCheck:
+                        description: VpsieLoadBalancerHealthCheck define the Vpsie
+                          loadbalancers health check configurations.
+                        properties:
+                          healthyThreshold:
+                            description: The number of times a health check must pass
+                              for a backend Droplet to be marked "healthy" and be
+                              re-added to the pool. The vaule must be between 2 and
+                              10. If not specified, the default value is 5.
+                            maximum: 10
+                            minimum: 2
+                            type: integer
+                          healthypath:
+                            type: string
+                          interval:
+                            description: The number of miilliseconds between between
+                              two consecutive health checks If not specified, the
+                              default value is 1000.
+                            type: integer
+                          timeout:
+                            description: The number of milliseconds the Load Balancer
+                              instance will wait for a response until marking a health
+                              check as failed. If not specified, the default value
+                              is 500.
+                            type: integer
+                          unhealthyThreshold:
+                            description: The number of times a health check must fail
+                              for a backend Droplet to be marked "unhealthy" and be
+                              removed from the pool. The vaule must be between 2 and
+                              10. If not specified, the default value is 2.
+                            maximum: 10
+                            minimum: 2
+                            type: integer
+                        type: object
+                      id:
+                        description: The Vpsie load balancer UUID. If omitted, a new
+                          load balancer will be created.
+                        type: string
+                      lbName:
+                        type: string
+                      redirectHTTP:
+                        type: boolean
+                      resourceIdentifier:
+                        type: string
+                      rules:
+                        items:
+                          properties:
+                            backPort:
+                              type: string
+                            backends:
+                              items:
+                                properties:
+                                  ip:
+                                    type: string
+                                  vmIdentifier:
+                                    type: string
+                                type: object
+                              type: array
+                            domainName:
+                              type: string
+                            domains:
+                              items:
+                                properties:
+                                  backPort:
+                                    type: string
+                                  backends:
+                                    properties:
+                                      ip:
+                                        type: string
+                                      vmIdentifier:
+                                        type: string
+                                    type: object
+                                  domainId:
+                                    type: string
+                                  domainName:
+                                    type: string
+                                type: object
+                              type: array
+                            frontPort:
+                              type: string
+                            scheme:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
                   vpc:
                     description: VPC configuration.
                     properties:
@@ -94,9 +209,6 @@ spec:
                     properties:
                       id:
                         description: ID of Vpsie resource
-                        type: string
-                      status:
-                        description: Status of Vpsie resource
                         type: string
                     type: object
                 type: object
