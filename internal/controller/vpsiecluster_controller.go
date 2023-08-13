@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/capi-samples/cluster-api-provider-docker/pkg/container"
 	"github.com/pkg/errors"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,15 +34,21 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 
+	// clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/record"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	infrav1 "github.com/vpsie/cluster-api-provider-vpsie/api/v1alpha1"
 	"github.com/vpsie/cluster-api-provider-vpsie/pkg/cloud/scope"
+	"github.com/vpsie/cluster-api-provider-vpsie/pkg/cloud/service/compute/loadbalancers"
+	"github.com/vpsie/cluster-api-provider-vpsie/util/reconciler"
 )
 
 // VpsieClusterReconciler reconciles a VpsieCluster object
 type VpsieClusterReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
-	ContainerRuntime container.Runtime
+	ReconcileTimeout time.Duration
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vpsieclusters,verbs=get;list;watch;create;update;patch;delete
@@ -60,9 +66,10 @@ type VpsieClusterReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *VpsieClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
-	logger := log.FromContext(ctx)
+	ctx, cancel := context.WithTimeout(ctx, reconciler.DefaultedLoopTimeout(r.ReconcileTimeout))
+	defer cancel()
 
-	ctx = container.RuntimeInto(ctx, r.ContainerRuntime)
+	logger := log.FromContext(ctx)
 
 	vpsieCluster := &infrav1.VpsieCluster{}
 	if err := r.Get(ctx, req.NamespacedName, vpsieCluster); err != nil {
@@ -126,9 +133,50 @@ func (r *VpsieClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *VpsieClusterReconciler) reconcileNormal(ctx context.Context, clusterScope *scope.ClusterScope) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling DockerCluster")
+
+	if !controllerutil.ContainsFinalizer(clusterScope.VpsieCluster, infrav1.ClusterFinalizer) {
+		controllerutil.AddFinalizer(clusterScope.VpsieCluster, infrav1.ClusterFinalizer)
+
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	loadbalancersvc := loadbalancers.NewService(clusterScope)
+	err := loadbalancersvc.Reconcile(ctx)
+	if err != nil {
+		logger.Error(err, "Reconcile error")
+		record.Warnf(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Reconcile error - %v", err)
+		return ctrl.Result{}, err
+	}
+
+	controlPlaneEndpoint := clusterScope.ControlPlaneEndpoint()
+
+	if controlPlaneEndpoint.Host == "" {
+		logger.Info("VpsieCluster does not have control-plane endpoint yet. Reconciling")
+		record.Event(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Waiting for control-plane endpoint")
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	record.Eventf(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Got control-plane endpoint - %s", controlPlaneEndpoint.Host)
+	clusterScope.SetReady()
+	record.Event(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Reconciled")
 	return ctrl.Result{}, nil
 }
 
 func (r *VpsieClusterReconciler) reconcileDelete(ctx context.Context, clusterScope *scope.ClusterScope) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling VpsieCluster deletion")
+
+	loadbalancersvc := loadbalancers.NewService(clusterScope)
+	if err := loadbalancersvc.Delete(ctx); err != nil {
+		logger.Error(err, "Reconcile error")
+		record.Warnf(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Reconcile error - %v", err)
+		return ctrl.Result{}, err
+	}
+
+	// Cluster is deleted so remove the finalizer.
+	controllerutil.RemoveFinalizer(clusterScope.VpsieCluster, infrav1.ClusterFinalizer)
+	record.Event(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Reconciled")
 	return ctrl.Result{}, nil
 }

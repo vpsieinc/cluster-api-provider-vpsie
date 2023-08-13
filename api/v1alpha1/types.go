@@ -2,25 +2,11 @@ package v1alpha1
 
 type VpsieResourceStatus string
 
-var (
-	// VpsieResourceStatusNew is the string representing a Vpsie resource just created and in a provisioning state.
-	VpsieResourceStatusNew = VpsieResourceStatus("new")
-	// VpsieResourceStatusRunning is the string representing a Vpsie resource already provisioned and in a active state.
-	VpsieResourceStatusRunning = VpsieResourceStatus("active")
-	// VpsieResourceStatusErrored is the string representing a Vpsie resource in a errored state.
-	VpsieResourceStatusErrored = VpsieResourceStatus("errored")
-	// VpsieResourceStatusOff is the string representing a Vpsie resource in off state.
-	VpsieResourceStatusOff = VpsieResourceStatus("off")
-)
-
-// DOResourceReference is a reference to a Vpsie resource.
+// VpsieResourceReference is a reference to a Vpsie resource.
 type VpsieResourceReference struct {
 	// ID of Vpsie resource
 	// +optional
 	ID string `json:"id,omitempty"`
-	// Status of Vpsie resource
-	// +optional
-	Status VpsieResourceStatus `json:"status,omitempty"`
 }
 
 // VpsieNetworkResource encapsulates Vpsie networking resources.
@@ -35,6 +21,9 @@ type NetworkSpec struct {
 	// VPC configuration.
 	// +optional
 	VPC VPCSpec `json:"vpc,omitempty"`
+
+	// LoadBalancer configuration
+	APIServerLoadbalancers LoadBalancer `json:"apiServerLoadbalancers,omitempty"`
 }
 
 type LoadBalancer struct {
@@ -54,13 +43,19 @@ type LoadBalancer struct {
 	LbName string `json:"lbName,omitempty"`
 
 	// +optional
-	RedirectHTTP string `json:"redirectHTTP,omitempty"`
+	RedirectHTTP bool `json:"redirectHTTP,omitempty"`
 
 	// +optional
 	Rules []Rule `json:"rules,omitempty"`
 
 	// +optional
 	Domains []Domain `json:"domains,omitempty"`
+
+	// +optional
+	HealthCheck VpsieLoadBalancerHealthCheck `json:"healthCheck,omitempty"`
+
+	// +optional
+	ResourceIdentifier string `json:"resourceIdentifier,omitempty"`
 }
 
 type Rule struct {
@@ -69,6 +64,18 @@ type Rule struct {
 
 	// +optional
 	FrontPort string `json:"frontPort,omitempty"`
+
+	// +optional
+	Backends []BackEnd `json:"backends,omitempty"`
+
+	// +optional
+	BackPort string `json:"backPort,omitempty"`
+
+	// +optional
+	DomainName string `json:"domainName,omitempty"`
+
+	// +optional
+	Domains []Domain `json:"domains,omitempty"`
 }
 
 type Domain struct {
@@ -112,4 +119,76 @@ type VPCSpec struct {
 
 	// +optional
 	AutoGenerate int `json:"autoGenerate,omitempty"`
+}
+
+var (
+	// DefaultLBPort default LoadBalancer port.
+	DefaultLBPort = 6443
+	// DefaultLBAlgorithm default LoadBalancer algorithm.
+	DefaultLBAlgorithm = "roundrobin"
+	// DefaultLBHealthCheckInterval default LoadBalancer health check interval.
+	DefaultLBHealthCheckInterval = 1000
+	// DefaultLBHealthCheckTimeout default LoadBalancer health check timeout.
+	DefaultLBHealthCheckTimeout = 500
+	// DefaultLBHealthCheckUnhealthyThreshold default LoadBalancer unhealthy threshold.
+	DefaultLBHealthCheckUnhealthyThreshold = 2
+	// DefaultLBHealthCheckHealthyThreshold default LoadBalancer healthy threshold.
+	DefaultLBHealthCheckHealthyThreshold = 5
+)
+
+func (v *LoadBalancer) ApplyDefaults() {
+	if v.Algorithm == "" {
+		v.Algorithm = DefaultLBAlgorithm
+	}
+
+	if v.HealthCheck.HealthyThreshold == 0 {
+		v.HealthCheck.HealthyThreshold = DefaultLBHealthCheckHealthyThreshold
+	}
+
+	if v.HealthCheck.HealthyPath == "" {
+		v.HealthCheck.HealthyPath = "/"
+	}
+
+	if v.HealthCheck.UnhealthyThreshold == 0 {
+		v.HealthCheck.UnhealthyThreshold = DefaultLBHealthCheckUnhealthyThreshold
+	}
+
+	if v.HealthCheck.Timeout == 0 {
+		v.HealthCheck.Timeout = DefaultLBHealthCheckTimeout
+	}
+
+	if v.HealthCheck.Interval == 0 {
+		v.HealthCheck.Interval = DefaultLBHealthCheckInterval
+	}
+}
+
+// VpsieLoadBalancerHealthCheck define the Vpsie loadbalancers health check configurations.
+type VpsieLoadBalancerHealthCheck struct {
+
+	// The number of miilliseconds between between two consecutive health checks
+	// If not specified, the default value is 1000.
+	// +optional
+	Interval int `json:"interval,omitempty"`
+
+	// The number of milliseconds the Load Balancer instance will wait for a response until marking a health check as failed.
+	// If not specified, the default value is 500.
+	// +optional
+	Timeout int `json:"timeout,omitempty"`
+
+	// The number of times a health check must fail for a backend Droplet to be marked "unhealthy" and be removed from the pool.
+	// The vaule must be between 2 and 10. If not specified, the default value is 2.
+	// +optional
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	UnhealthyThreshold int `json:"unhealthyThreshold,omitempty"`
+
+	// The number of times a health check must pass for a backend Droplet to be marked "healthy" and be re-added to the pool.
+	// The vaule must be between 2 and 10. If not specified, the default value is 5.
+	// +optional
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=10
+	HealthyThreshold int `json:"healthyThreshold,omitempty"`
+
+	//  +optional
+	HealthyPath string `json:"healthypath,omitempty"`
 }

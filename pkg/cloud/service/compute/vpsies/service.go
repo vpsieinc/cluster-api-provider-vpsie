@@ -1,0 +1,16 @@
+package vpsies
+
+import (
+	"context"
+
+	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+// Reconcile reconcile cluster network components.
+func (s *Service) Reconcile(ctx context.Context) error {
+	log := log.FromContext(ctx)
+	log.Info("Reconciling network resources")
+
+	return nil
+
+}
