@@ -34,7 +34,12 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 
-	// clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/predicates"
+
 	"sigs.k8s.io/cluster-api/util/record"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -126,15 +131,27 @@ func (r *VpsieClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *VpsieClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+func (r *VpsieClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.VpsieCluster{}).
-		Complete(r)
+		//WithOptions(options).
+		WithEventFilter(predicates.ResourceNotPaused(ctrl.LoggerFrom(ctx))).
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	return c.Watch(
+		source.Kind(mgr.GetCache(), &clusterv1.Cluster{}),
+		handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, infrav1.GroupVersion.WithKind("VpsieCluster"), mgr.GetClient(), &infrav1.VpsieCluster{})),
+		predicates.ClusterUnpaused(ctrl.LoggerFrom(ctx)),
+	)
 }
 
 func (r *VpsieClusterReconciler) reconcileNormal(ctx context.Context, clusterScope *scope.ClusterScope) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling DockerCluster")
+	logger.Info("Reconciling VpsieCluster")
 
 	if !controllerutil.ContainsFinalizer(clusterScope.VpsieCluster, infrav1.ClusterFinalizer) {
 		controllerutil.AddFinalizer(clusterScope.VpsieCluster, infrav1.ClusterFinalizer)
