@@ -6,11 +6,11 @@ import (
 
 // Service holds a collection of interfaces.
 type Service struct {
-	scope *scope.ClusterScope
+	scope *scope.MachineScope
 }
 
 // NewService returns a new service given the Vpsie api client.
-func NewService(scope *scope.ClusterScope) *Service {
+func NewService(scope *scope.MachineScope) *Service {
 	return &Service{
 		scope: scope,
 	}
