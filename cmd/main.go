@@ -61,13 +61,12 @@ func main() {
 	var reconcileTimeout time.Duration
 	var leaderElectionLeaseDuration time.Duration
 	var leaderElectionRenewDeadline time.Duration
-	var leaderElectionRetryPeriod   time.Duration
-	var syncPeriod                  time.Duration
-	var leaderElectionNamespace     string
-	var watchNamespace              string
-	var profilerAddress             string
-	var webhookPort                 int
-
+	var leaderElectionRetryPeriod time.Duration
+	var syncPeriod time.Duration
+	var leaderElectionNamespace string
+	var watchNamespace string
+	var profilerAddress string
+	var webhookPort int
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":9440", "The address the probe endpoint binds to.")
@@ -83,14 +82,12 @@ func main() {
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
 	flag.StringVar(&profilerAddress, "profiler-address", "", "Bind address to expose the pprof profiler (e.g. localhost:6060)")
 	flag.IntVar(&webhookPort, "webhook-port", 9443, "Webhook Server port")
-	
-	
+
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	ctx := ctrl.SetupSignalHandler()
@@ -118,7 +115,6 @@ func main() {
 		}()
 	}
 
-	
 	// Machine and cluster operations can create enough events to trigger the event recorder spam filter
 	// Setting the burst size higher ensures all events will be recorded and submitted to the API
 	broadcaster := cgrecord.NewBroadcasterWithCorrelatorOptions(cgrecord.CorrelatorOptions{
@@ -132,7 +128,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "5ba55f9f.cluster.x-k8s.io",
-		
+
 		LeaderElectionNamespace:    leaderElectionNamespace,
 		LeaseDuration:              &leaderElectionLeaseDuration,
 		RenewDeadline:              &leaderElectionRenewDeadline,
@@ -148,19 +144,23 @@ func main() {
 	}
 
 	if err = (&controller.VpsieClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
 		ReconcileTimeout: reconcileTimeout,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VpsieCluster")
 		os.Exit(1)
 	}
 	if err = (&controller.VpsieMachineReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
 		ReconcileTimeout: reconcileTimeout,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VpsieMachine")
+		os.Exit(1)
+	}
+	if err = (&infrastructurev1alpha1.VpsieCluster{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "VpsieCluster")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
