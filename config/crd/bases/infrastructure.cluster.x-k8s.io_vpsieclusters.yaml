@@ -124,7 +124,7 @@ spec:
                       lbName:
                         type: string
                       redirectHTTP:
-                        type: boolean
+                        type: integer
                       resourceIdentifier:
                         type: string
                       rules:
