@@ -2,6 +2,24 @@ package v1alpha1
 
 type VpsieResourceStatus string
 
+type VpsieInstanceStatus string
+
+var (
+	InstanceStatusActive = VpsieInstanceStatus(1)
+
+	InstanceStatusInActive = VpsieInstanceStatus(0)
+
+	InstanceStatusPending = VpsieInstanceStatus("pending")
+
+	InstanceStatusSuspended = VpsieInstanceStatus("suspended")
+
+	InstanceStatusLocked = VpsieInstanceStatus("locked")
+
+	InstanceStatusTerminated = VpsieInstanceStatus("terminated")
+
+	InstanceStatusDeleted = VpsieInstanceStatus("deleted")
+)
+
 // VpsieResourceReference is a reference to a Vpsie resource.
 type VpsieResourceReference struct {
 	// ID of Vpsie resource
@@ -26,6 +44,14 @@ type NetworkSpec struct {
 	APIServerLoadbalancers LoadBalancer `json:"apiServerLoadbalancers,omitempty"`
 }
 
+type AdditionalStorage struct {
+	DiskFormat  string `json:"diskFormat,omitempty"`
+	Size        string `json:"size,omitempty"`
+	Name        string `json:"name,omitempty"`
+	StorageType string `json:"storageType,omitempty"`
+	IsAutomatic int    `json:"isAutomatic,omitempty"`
+}
+
 type LoadBalancer struct {
 	// The Vpsie load balancer UUID. If omitted, a new load balancer will be created.
 	// +optional
@@ -43,7 +69,7 @@ type LoadBalancer struct {
 	LbName string `json:"lbName,omitempty"`
 
 	// +optional
-	RedirectHTTP bool `json:"redirectHTTP,omitempty"`
+	RedirectHTTP int `json:"redirectHTTP,omitempty"`
 
 	// +optional
 	Rules []Rule `json:"rules,omitempty"`

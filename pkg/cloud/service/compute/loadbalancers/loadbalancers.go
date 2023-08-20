@@ -13,8 +13,8 @@ import (
 
 // Reconcile reconcile cluster network components.
 func (s *Service) Reconcile(ctx context.Context) error {
-	log := log.FromContext(ctx)
-	log.Info("Reconciling loadbalancer resources")
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling loadbalancer resources")
 
 	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 	apiServerLoadbalancer.ApplyDefaults()
@@ -57,8 +57,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 // Delete delete cluster control-plane loadbalancer compoenents.
 func (s *Service) Delete(ctx context.Context) error {
-	log := log.FromContext(ctx)
-	log.Info("Deleting loadbalancer resources")
+	logger := log.FromContext(ctx)
+	logger.Info("Deleting loadbalancer resources")
 
 	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 
@@ -68,7 +68,7 @@ func (s *Service) Delete(ctx context.Context) error {
 	}
 
 	if loadbalancer == nil {
-		log.Info("Unable to locate load balancer")
+		logger.Info("Unable to locate load balancer")
 		record.Eventf(s.scope.VpsieCluster, corev1.EventTypeWarning, "NoLoadBalancerFound", "Unable to find matching load balancer")
 		return nil
 	}
@@ -98,17 +98,18 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 		}
 	}
 	request := govpsie.CreateLBReq{
-		Rules:              rules,
-		Algorithm:          lbSpec.Algorithm,
-		HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
+
+		Rule:      rules,
+		Algorithm: lbSpec.Algorithm,
+		// HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
 		LBName:             lbSpec.LbName,
 		DcIdentifier:       lbSpec.DcIdentifier,
 		ResourceIdentifier: lbSpec.ResourceIdentifier,
 		RedirectHTTP:       lbSpec.RedirectHTTP,
-		CheckInterval:      lbSpec.HealthCheck.Interval,
-		FastInterval:       lbSpec.HealthCheck.Timeout,
-		Rise:               lbSpec.HealthCheck.HealthyThreshold,
-		Fall:               lbSpec.HealthCheck.UnhealthyThreshold,
+		// CheckInterval:      lbSpec.HealthCheck.Interval,
+		// FastInterval:       lbSpec.HealthCheck.Timeout,
+		// Rise:               lbSpec.HealthCheck.HealthyThreshold,
+		// Fall:               lbSpec.HealthCheck.UnhealthyThreshold,
 	}
 
 	err := s.scope.VpsieClients.Services.LB.CreateLB(ctx, &request)

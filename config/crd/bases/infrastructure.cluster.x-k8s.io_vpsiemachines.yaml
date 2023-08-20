@@ -34,13 +34,77 @@ spec:
           spec:
             description: VpsieMachineSpec defines the desired state of VpsieMachine
             properties:
-              foo:
-                description: Foo is an example field of VpsieMachine. Edit vpsiemachine_types.go
-                  to remove/update
+              osIdentifier:
+                type: string
+              providerID:
+                description: ProviderID is the identifier for the VpsieMachine instance
+                type: string
+              sshKeys:
+                items:
+                  type: string
+                type: array
+              storage:
+                items:
+                  properties:
+                    diskFormat:
+                      type: string
+                    isAutomatic:
+                      type: integer
+                    name:
+                      type: string
+                    size:
+                      type: string
+                    storageType:
+                      type: string
+                  type: object
+                type: array
+              vpsiePlan:
                 type: string
             type: object
           status:
             description: VpsieMachineStatus defines the observed state of VpsieMachine
+            properties:
+              addresses:
+                description: Addresses contains the associated addresses for the vpsie
+                  instance.
+                items:
+                  description: NodeAddress contains information for the node's address.
+                  properties:
+                    address:
+                      description: The node address.
+                      type: string
+                    type:
+                      description: Node address type, one of Hostname, ExternalIP
+                        or InternalIP.
+                      type: string
+                  required:
+                  - address
+                  - type
+                  type: object
+                type: array
+              failureMessage:
+                description: "FailureMessage will be set in the event that there is
+                  a terminal problem reconciling the Machine and will contain a more
+                  verbose string suitable for logging and human consumption. \n Any
+                  transient errors that occur during the reconciliation of Machines
+                  can be added as events to the Machine object and/or logged in the
+                  controller's output."
+                type: string
+              failureReason:
+                description: "FailureReason will be set in the event that there is
+                  a terminal problem reconciling the Machine and will contain a succinct
+                  value suitable for machine interpretation. \n Any transient errors
+                  that occur during the reconciliation of Machines can be added as
+                  events to the Machine object and/or logged in the controller's output."
+                type: string
+              instanceStatus:
+                description: InstanceStatus is the status of the DigitalOcean droplet
+                  instance for this machine.
+                type: string
+              ready:
+                description: Ready indicates the vpsie infrastructure has been provisioned
+                  and is ready
+                type: boolean
             type: object
         type: object
     served: true

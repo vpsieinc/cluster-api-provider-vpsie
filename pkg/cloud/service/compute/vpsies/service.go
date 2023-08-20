@@ -1,16 +1,17 @@
 package vpsies
 
 import (
-	"context"
-
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/vpsie/cluster-api-provider-vpsie/pkg/cloud/scope"
 )
 
-// Reconcile reconcile cluster network components.
-func (s *Service) Reconcile(ctx context.Context) error {
-	log := log.FromContext(ctx)
-	log.Info("Reconciling network resources")
+// Service holds a collection of interfaces.
+type Service struct {
+	scope *scope.MachineScope
+}
 
-	return nil
-
+// NewService returns a new service given the Vpsie api client.
+func NewService(scope *scope.MachineScope) *Service {
+	return &Service{
+		scope: scope,
+	}
 }
