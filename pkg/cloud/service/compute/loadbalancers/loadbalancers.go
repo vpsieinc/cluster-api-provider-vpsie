@@ -13,8 +13,8 @@ import (
 
 // Reconcile reconcile cluster network components.
 func (s *Service) Reconcile(ctx context.Context) error {
-	log := log.FromContext(ctx)
-	log.Info("Reconciling loadbalancer resources")
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling loadbalancer resources")
 
 	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 	apiServerLoadbalancer.ApplyDefaults()
@@ -57,8 +57,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 // Delete delete cluster control-plane loadbalancer compoenents.
 func (s *Service) Delete(ctx context.Context) error {
-	log := log.FromContext(ctx)
-	log.Info("Deleting loadbalancer resources")
+	logger := log.FromContext(ctx)
+	logger.Info("Deleting loadbalancer resources")
 
 	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 
@@ -68,7 +68,7 @@ func (s *Service) Delete(ctx context.Context) error {
 	}
 
 	if loadbalancer == nil {
-		log.Info("Unable to locate load balancer")
+		logger.Info("Unable to locate load balancer")
 		record.Eventf(s.scope.VpsieCluster, corev1.EventTypeWarning, "NoLoadBalancerFound", "Unable to find matching load balancer")
 		return nil
 	}

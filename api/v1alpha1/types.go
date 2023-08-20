@@ -5,7 +5,11 @@ type VpsieResourceStatus string
 type VpsieInstanceStatus string
 
 var (
-	InstanceStatusActive = VpsieInstanceStatus("active")
+	InstanceStatusActive = VpsieInstanceStatus(1)
+
+	InstanceStatusInActive = VpsieInstanceStatus(0)
+
+	InstanceStatusPending = VpsieInstanceStatus("pending")
 
 	InstanceStatusSuspended = VpsieInstanceStatus("suspended")
 
