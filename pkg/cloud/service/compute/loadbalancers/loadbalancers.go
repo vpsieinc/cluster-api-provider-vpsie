@@ -98,17 +98,18 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 		}
 	}
 	request := govpsie.CreateLBReq{
-		Rules:              rules,
-		Algorithm:          lbSpec.Algorithm,
-		HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
+
+		Rule:      rules,
+		Algorithm: lbSpec.Algorithm,
+		// HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
 		LBName:             lbSpec.LbName,
 		DcIdentifier:       lbSpec.DcIdentifier,
 		ResourceIdentifier: lbSpec.ResourceIdentifier,
 		RedirectHTTP:       lbSpec.RedirectHTTP,
-		CheckInterval:      lbSpec.HealthCheck.Interval,
-		FastInterval:       lbSpec.HealthCheck.Timeout,
-		Rise:               lbSpec.HealthCheck.HealthyThreshold,
-		Fall:               lbSpec.HealthCheck.UnhealthyThreshold,
+		// CheckInterval:      lbSpec.HealthCheck.Interval,
+		// FastInterval:       lbSpec.HealthCheck.Timeout,
+		// Rise:               lbSpec.HealthCheck.HealthyThreshold,
+		// Fall:               lbSpec.HealthCheck.UnhealthyThreshold,
 	}
 
 	err := s.scope.VpsieClients.Services.LB.CreateLB(ctx, &request)

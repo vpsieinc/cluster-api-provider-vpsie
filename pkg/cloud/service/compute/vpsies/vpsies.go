@@ -23,9 +23,9 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 	instancename := s.scope.Name()
 
 	scriptRequest := govpsie.CreateScriptRequest{
-		Name: instancename,
-		Script: bootstrapdata,
-		Type: "bash",
+		Name:          instancename,
+		ScriptContent: bootstrapdata,
+		ScriptType:    "bash",
 	}
 
 	err = s.scope.VpsieClients.Services.Scripts.CreateScript(ctx, &scriptRequest)
@@ -34,7 +34,7 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 	}
 
 	// list scripts and search for the one we just created
-	scripts, err := s.scope.VpsieClients.Services.Scripts.ListScripts(ctx, &govpsie.ListOptions{}, s.scope.VpsieCluster.Spec.Project)
+	scripts, err := s.scope.VpsieClients.Services.Scripts.GetScripts(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list scripts")
 	}
@@ -50,15 +50,15 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 	projectid, _ := strconv.Atoi(s.scope.VpsieCluster.Spec.Project)
 	request := &govpsie.CreateVpsieRequest{
 		ResourceIdentifier: *s.scope.VpsieMachine.Spec.VpsiePlan,
-		Hostname: instancename,
-		OsIdentifier: *s.scope.VpsieMachine.Spec.OsIdentifier,
-		DcIdentifier: s.scope.VpsieCluster.Spec.DcIdentifier,
-		ProjectID: projectid,
-		AddPublicIpV4: 1,
-		AddPublicIpV6: 1,
-		AddPrivateIp: 1,
-		BackupEnabled: 1,
-		ScriptIdentifier: script.Identifier,
+		Hostname:           instancename,
+		OsIdentifier:       *s.scope.VpsieMachine.Spec.OsIdentifier,
+		DcIdentifier:       s.scope.VpsieCluster.Spec.DcIdentifier,
+		ProjectID:          projectid,
+		AddPublicIpV4:      1,
+		AddPublicIpV6:      1,
+		AddPrivateIp:       1,
+		BackupEnabled:      1,
+		ScriptIdentifier:   script.Identifier,
 	}
 
 	err = s.scope.VpsieClients.Services.Vpsie.CreateVpsie(ctx, request)
@@ -101,7 +101,7 @@ func (s *Service) GetVpsieAddress(vpsie *govpsie.VmData) ([]corev1.NodeAddress, 
 	addresses := []corev1.NodeAddress{}
 
 	privatev4 := vpsie.PrivateIP
-	
+
 	addresses = append(addresses, corev1.NodeAddress{
 		Type:    corev1.NodeInternalIP,
 		Address: privatev4,

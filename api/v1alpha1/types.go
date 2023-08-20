@@ -69,7 +69,7 @@ type LoadBalancer struct {
 	LbName string `json:"lbName,omitempty"`
 
 	// +optional
-	RedirectHTTP bool `json:"redirectHTTP,omitempty"`
+	RedirectHTTP int `json:"redirectHTTP,omitempty"`
 
 	// +optional
 	Rules []Rule `json:"rules,omitempty"`

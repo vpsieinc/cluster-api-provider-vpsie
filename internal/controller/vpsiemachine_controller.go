@@ -167,17 +167,17 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpsieMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
-	For(&infrav1.VpsieMachine{}).
-	WithEventFilter(predicates.ResourceNotPaused(ctrl.LoggerFrom(ctx))).
-	Watches(
-		&clusterv1.Machine{},
-		handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("VpsieMachine"))),
-	).
-	Watches(
-		&infrav1.VpsieCluster{},
-		handler.EnqueueRequestsFromMapFunc(r.VpsieClusterToVpsieMachines(ctx)),
-	).
-	Build(r)
+		For(&infrav1.VpsieMachine{}).
+		WithEventFilter(predicates.ResourceNotPaused(ctrl.LoggerFrom(ctx))).
+		Watches(
+			&clusterv1.Machine{},
+			handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("VpsieMachine"))),
+		).
+		Watches(
+			&infrav1.VpsieCluster{},
+			handler.EnqueueRequestsFromMapFunc(r.VpsieClusterToVpsieMachines(ctx)),
+		).
+		Build(r)
 
 	if err != nil {
 		return errors.Wrap(err, "error creating controller")
@@ -259,7 +259,7 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		return ctrl.Result{}, nil
 	}
 
-	if !machineScope.Cluster.Status.InfrastructureReady { 
+	if !machineScope.Cluster.Status.InfrastructureReady {
 		machineScope.Info("Cluster infrastructure is not ready yet")
 		return ctrl.Result{}, nil
 	}
@@ -271,7 +271,7 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	}
 
 	vpsiesvc := vpsies.NewService(machineScope)
-	
+
 	vpsie, err := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
 	if err != nil {
 		return ctrl.Result{}, err
@@ -291,7 +291,7 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		}
 
 		vpsie, err = vpsiesvc.CreateVpsie(ctx)
-		if  err != nil {
+		if err != nil {
 			if err.Error() == "Vpsie is pending" {
 				logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
 				record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
@@ -307,7 +307,6 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is created - instance: %s", vpsie.NodeID)
 	}
 
-
 	machineScope.SetProviderID(strconv.Itoa(vpsie.ID))
 	machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(vpsie.IsActive))
 
@@ -320,7 +319,7 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 
 	vmState := *machineScope.GetInstanceStatus()
 
-	switch vmState {		
+	switch vmState {
 	case infrav1.InstanceStatusActive:
 		logger.Info("VpsieMachine instance is running", "instance-id", *machineScope.GetInstanceID())
 		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is running - instance-id: %s", *machineScope.GetInstanceID())

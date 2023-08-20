@@ -151,4 +151,3 @@ func (m *MachineScope) GetBootstrapData() (string, error) {
 
 	return string(data), nil
 }
-
