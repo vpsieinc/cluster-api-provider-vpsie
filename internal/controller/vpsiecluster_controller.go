@@ -162,6 +162,12 @@ func (r *VpsieClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 	loadbalancersvc := loadbalancers.NewService(clusterScope)
 	err := loadbalancersvc.Reconcile(ctx)
 	if err != nil {
+		if err.Error() == "LoadBalancer Pending" {
+			logger.Info("LOadBalancer is in Pending state")
+			record.Event(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Waiting for load-balancer")
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		}
+
 		logger.Error(err, "Reconcile error")
 		record.Warnf(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Reconcile error - %v", err)
 		return ctrl.Result{}, err

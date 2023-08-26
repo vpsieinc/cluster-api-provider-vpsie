@@ -2,7 +2,6 @@ package scope
 
 import (
 	"context"
-	"os"
 
 	"github.com/pkg/errors"
 	"github.com/vpsie/govpsie"
@@ -23,9 +22,10 @@ func (t *TokenSource) Token() (*oauth2.Token, error) {
 }
 
 func (c *VpsieClients) Session() (*govpsie.Client, error) {
-	accessToken := os.Getenv("VPSIE_ACCESS_TOKEN")
+	// accessToken := os.Getenv("VPSIE_ACCESS_TOKEN")
+	accessToken := ""
 	if accessToken == "" {
-		return nil, errors.New("env var VPSIE_ACCESS_TOKEN is required")
+		return nil, errors.New("env var VPSIE_ACCESS_TOKEN is required, set in os env")
 	}
 
 	oc := oauth2.NewClient(context.Background(), &TokenSource{

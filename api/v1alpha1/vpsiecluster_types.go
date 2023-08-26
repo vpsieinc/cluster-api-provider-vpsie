@@ -38,9 +38,9 @@ type VpsieClusterSpec struct {
 	// Project is the name of the project to deploy the cluster to.
 	Project string `json:"project"`
 
-	// The Vpsie Region the cluster lives in.
+	// The Vpsie dcIdentifier the cluster lives in.
 	// +optional
-	DcIdentifier string `json:"region"`
+	DcIdentifier string `json:"dcIdentifier"`
 
 	// ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.
 	// +optional
@@ -53,12 +53,8 @@ type VpsieClusterSpec struct {
 
 // VpsieClusterStatus defines the observed state of VpsieCluster
 type VpsieClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Ready indicates that the cluster is ready.
 	// +optional
-	// +kubebuilder:default=falctrl.SetupSignalHandler()se
 	Ready bool `json:"ready"`
 
 	// Network encapsulates all things related to Vpsie network.

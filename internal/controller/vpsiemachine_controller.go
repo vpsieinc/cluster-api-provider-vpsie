@@ -272,10 +272,10 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 
 	vpsiesvc := vpsies.NewService(machineScope)
 
-	vpsie, err := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	vpsie, _ := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
+	// if err != nil {
+	// 	return ctrl.Result{}, err
+	// }
 
 	if vpsie == nil {
 
@@ -308,7 +308,7 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	}
 
 	machineScope.SetProviderID(strconv.Itoa(vpsie.ID))
-	machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(vpsie.IsActive))
+	machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(fmt.Sprint(vpsie.IsActive)))
 
 	addrs, err := vpsiesvc.GetVpsieAddress(vpsie)
 	if err != nil {
@@ -338,10 +338,10 @@ func (r *VpsieMachineReconciler) reconcileDelete(ctx context.Context, machineSco
 	logger.Info("Reconciling VpsieMachine deletion")
 
 	vpsiesvc := vpsies.NewService(machineScope)
-	vpsie, err := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
-	if err != nil {
-		return ctrl.Result{}, nil
-	}
+	vpsie, _ := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
+	// if err != nil {
+	// 	return ctrl.Result{}, nil
+	// }
 
 	if vpsie != nil {
 		if err := vpsiesvc.Delete(ctx, machineScope.GetInstanceID()); err != nil {

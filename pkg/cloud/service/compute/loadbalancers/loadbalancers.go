@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/vpsie/cluster-api-provider-vpsie/api/v1alpha1"
+	infrav1 "github.com/vpsie/cluster-api-provider-vpsie/api/v1alpha1"
 	"github.com/vpsie/govpsie"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/cluster-api/util/record"
@@ -26,16 +27,22 @@ func (s *Service) Reconcile(ctx context.Context) error {
 		lbUUID = apiServerLoadbalancer.ID
 	}
 
-	loadbalancer, err := s.GetLB(ctx, lbUUID)
-	if err != nil {
-		return err
-	}
+	loadbalancer, _ := s.GetLB(ctx, lbUUID)
+	// if err != nil {
+	// 	return err
+	// }
 
 	if loadbalancer == nil {
-		loadbalancer, err = s.CreateLB(ctx, apiServerLoadbalancer)
+		loadbalancer, err := s.CreateLB(ctx, apiServerLoadbalancer)
 		if err != nil {
 			return errors.Wrapf(err, "failed to create load balancers for VpsieCluster %s/%s", s.scope.VpsieCluster.Namespace, s.scope.VpsieCluster.Name)
 		}
+
+		if loadbalancer == nil {
+			return errors.New("LoadBalancer Pending")
+		}
+
+		logger.Info("loadbalancer-payload", "LB", loadbalancer)
 
 		record.Eventf(s.scope.VpsieCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancers - %s", loadbalancer.LBName)
 	}
@@ -64,7 +71,7 @@ func (s *Service) Delete(ctx context.Context) error {
 
 	loadbalancer, err := s.GetLB(ctx, apiServerLoadbalancer.ID)
 	if err != nil {
-		return err
+		return nil
 	}
 
 	if loadbalancer == nil {
@@ -81,6 +88,15 @@ func (s *Service) Delete(ctx context.Context) error {
 }
 
 func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (*govpsie.LB, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Creating loadbalancer resources")
+
+	logger.Info("before creation")
+	logger.Info("before creation", "rules", lbSpec.Rules)
+
+	clusterName := infrav1.SafeName(s.scope.Name())
+	name := clusterName + "-" + s.scope.UID()
+
 	rules := make([]govpsie.Rule, len(lbSpec.Rules))
 	for i, obj := range lbSpec.Rules {
 
@@ -97,26 +113,32 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 			Domains:    domains,
 		}
 	}
+
+	logger.Info("rules creation", "rules", rules)
+
 	request := govpsie.CreateLBReq{
 
 		Rule:      rules,
 		Algorithm: lbSpec.Algorithm,
 		// HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
-		LBName:             lbSpec.LbName,
-		DcIdentifier:       lbSpec.DcIdentifier,
+		LBName:             name,
+		DcIdentifier:       s.scope.VpsieCluster.Spec.DcIdentifier,
 		ResourceIdentifier: lbSpec.ResourceIdentifier,
-		RedirectHTTP:       lbSpec.RedirectHTTP,
 		// CheckInterval:      lbSpec.HealthCheck.Interval,
 		// FastInterval:       lbSpec.HealthCheck.Timeout,
 		// Rise:               lbSpec.HealthCheck.HealthyThreshold,
 		// Fall:               lbSpec.HealthCheck.UnhealthyThreshold,
 	}
 
+	logger.Info("request payload", "request", request)
+
 	err := s.scope.VpsieClients.Services.LB.CreateLB(ctx, &request)
 	if err != nil {
+		logger.Info("during creation", "err", err)
 		return nil, err
 	}
 
+	logger.Info("after creation")
 	allLBs, err := s.scope.Services.LB.ListLBs(ctx, &govpsie.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -124,7 +146,9 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 
 	var CreatedLB *govpsie.LB
 	for _, lb := range allLBs {
-		if lb.LBName == lbSpec.LbName {
+		logger.Info("during list all", "lb", lb)
+
+		if lb.LBName == name {
 			CreatedLB = &lb
 			break
 		}
@@ -144,4 +168,26 @@ func (s *Service) DeleteLoadBalancer(ctx context.Context, id string) error {
 
 func (s *Service) GetLB(ctx context.Context, id string) (*govpsie.LB, error) {
 	return s.scope.Services.LB.GetLB(ctx, id)
+}
+
+func (s *Service) IsLBPending(ctx context.Context, lbname string) (bool, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Check if LB is pending")
+
+	if lbname == "" {
+		s.scope.Info("VpsieMachine does not have an lb lbname")
+	}
+
+	pendingVms, err := s.scope.VpsieClients.Services.Pending.GetPendingVms(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get loadbalancer")
+	}
+
+	for _, v := range pendingVms {
+		if v.Data.Hostname == lbname {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
