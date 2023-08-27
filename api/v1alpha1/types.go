@@ -41,6 +41,12 @@ type VpsieResourceReference struct {
 	// ID of Vpsie resource
 	// +optional
 	ID string `json:"id,omitempty"`
+
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// +optional
+	Status string `json:"status,omitempty"`
 }
 
 // VpsieNetworkResource encapsulates Vpsie networking resources.

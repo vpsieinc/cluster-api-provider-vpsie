@@ -81,16 +81,6 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 	}
 
 	if vpsie == nil {
-		// check if pending
-		pending, err := s.IsVmPending(ctx, instancename)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to check if Vpsie is pending")
-		}
-
-		if pending {
-			return nil, errors.New("Vpsie is pending")
-		}
-
 		return nil, errors.New("Vpsie not found")
 	}
 
@@ -151,7 +141,7 @@ func (s *Service) Delete(ctx context.Context, id *string) error {
 	return nil
 }
 
-func (s *Service) IsVmPending(ctx context.Context, hostname string) (bool, error) {
+func (s *Service) IsVmPending(ctx context.Context, hostname string) (*govpsie.PendingVm, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Check if Vpsie is pending")
 
@@ -161,14 +151,31 @@ func (s *Service) IsVmPending(ctx context.Context, hostname string) (bool, error
 
 	pendingVms, err := s.scope.VpsieClients.Services.Pending.GetPendingVms(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get Vpsie")
+		return nil, errors.Wrap(err, "failed to get Vpsie")
 	}
 
 	for _, v := range pendingVms {
 		if v.Data.Hostname == hostname {
-			return true, nil
+			return &v, nil
 		}
 	}
 
-	return false, nil
+	return nil, nil
+}
+
+func (s *Service) GetVpsieByName(ctx context.Context, hostName string) (*govpsie.VmData, error) {
+	// list and find it by name
+
+	vpsies, err := s.scope.VpsieClients.Services.Vpsie.ListVpsie(ctx, &govpsie.ListOptions{}, s.scope.VpsieCluster.Spec.Project)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list Vpsies")
+	}
+
+	for _, v := range vpsies {
+		if v.Hostname == hostName {
+			return &v, nil
+		}
+	}
+
+	return nil, nil
 }

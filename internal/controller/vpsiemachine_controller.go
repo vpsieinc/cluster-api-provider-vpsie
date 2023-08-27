@@ -284,24 +284,45 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 			return ctrl.Result{}, err
 		}
 
-		if isPending {
+		if isPending != nil {
 			logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
 			record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
 			return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 		}
 
-		vpsie, err = vpsiesvc.CreateVpsie(ctx)
+		vpsie, err = vpsiesvc.GetVpsieByName(ctx, machineScope.Name())
 		if err != nil {
-			if err.Error() == "Vpsie is pending" {
-				logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
-				record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
-				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-			}
-
-			err = errors.Errorf("failed to create vpsie: %v", err)
+			logger.Error(err, "Reconcile error")
 			record.Warnf(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconcile error - %v", err)
-			machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(infrav1.InstanceStatusInActive))
 			return ctrl.Result{}, err
+		}
+
+		if vpsie == nil {
+			vpsie, err = vpsiesvc.CreateVpsie(ctx)
+			if err != nil {
+				if err.Error() == "Vpsie not found" {
+					// check if pending
+					pendingVm, err := vpsiesvc.IsVmPending(ctx, machineScope.Name())
+					if err != nil {
+						logger.Error(err, "Reconcile error")
+						return ctrl.Result{}, err
+					}
+
+					if pendingVm != nil {
+
+						machineScope.SetInstanceStatus(infrav1.InstanceStatusPending)
+
+						logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
+						record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
+						return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+					}
+				}
+
+				err = errors.Errorf("failed to create vpsie: %v", err)
+				record.Warnf(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconcile error - %v", err)
+				machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(infrav1.InstanceStatusInActive))
+				return ctrl.Result{}, err
+			}
 		}
 
 		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is created - instance: %s", vpsie.NodeID)

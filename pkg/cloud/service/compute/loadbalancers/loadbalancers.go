@@ -33,22 +33,46 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	// }
 
 	if loadbalancer == nil {
-		loadbalancer, err := s.CreateLB(ctx, apiServerLoadbalancer)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create load balancers for VpsieCluster %s/%s", s.scope.VpsieCluster.Namespace, s.scope.VpsieCluster.Name)
+
+		if apiServerLoadbalancerRef.Name != "" {
+			pendingLB, err := s.IsLBPending(ctx, apiServerLoadbalancerRef.Name)
+			if err != nil {
+				return errors.Wrap(err, "failed to get loadbalancer")
+			}
+
+			if pendingLB != nil {
+				logger.Info("LoadBalancer Pending", "pendingLB", pendingLB)
+				return errors.New("LoadBalancer Pending")
+			}
+
+			loadbalancer, err = s.GetLBByName(ctx, apiServerLoadbalancerRef.Name)
+			if err != nil {
+				return errors.Wrap(err, "failed to get loadbalancer")
+			}
+		} else {
+			loadbalancer, err := s.CreateLB(ctx, apiServerLoadbalancer)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create load balancers for VpsieCluster %s/%s", s.scope.VpsieCluster.Namespace, s.scope.VpsieCluster.Name)
+			}
+
+			if loadbalancer == nil {
+				pendingLB , err := s.IsLBPending(ctx, "name")
+				// update name, status
+				if err != nil {
+					return errors.Wrap(err, "failed to get loadbalancer")
+				}
+				apiServerLoadbalancerRef.Name = pendingLB.Data.LbName
+				apiServerLoadbalancerRef.Status = "Pending"
+				return errors.New("LoadBalancer Pending")
+			}
+
+
+			record.Eventf(s.scope.VpsieCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancers - %s", loadbalancer.LBName)
 		}
-
-		if loadbalancer == nil {
-			return errors.New("LoadBalancer Pending")
-		}
-
-		logger.Info("loadbalancer-payload", "LB", loadbalancer)
-
-		record.Eventf(s.scope.VpsieCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancers - %s", loadbalancer.LBName)
 	}
 
 	apiServerLoadbalancerRef.ID = loadbalancer.Identifier
-	// apiServerLoadbalancerRef.Status = infrav1.VpsieClusterStatus(loadbalancer.Status)
+	apiServerLoadbalancerRef.Status = "Running"
 	apiServerLoadbalancer.ID = loadbalancer.Identifier
 
 	record.Eventf(s.scope.VpsieCluster, corev1.EventTypeNormal, "LoadBalancerReady", "LoadBalancer got an IP Address - %s", loadbalancer.DefaultIP)
@@ -170,7 +194,25 @@ func (s *Service) GetLB(ctx context.Context, id string) (*govpsie.LB, error) {
 	return s.scope.Services.LB.GetLB(ctx, id)
 }
 
-func (s *Service) IsLBPending(ctx context.Context, lbname string) (bool, error) {
+func (s *Service) GetLBByName(ctx context.Context, name string) (*govpsie.LB, error) {
+	// list first and find by name
+	lbs, err := s.scope.Services.LB.ListLBs(ctx, &govpsie.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var lb *govpsie.LB
+	for _, v := range lbs {
+		if v.LBName == name {
+			lb = &v
+			break
+		}
+	}
+
+	return lb, nil
+}
+
+func (s *Service) IsLBPending(ctx context.Context, lbname string) (*govpsie.PendingLB, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Check if LB is pending")
 
@@ -178,16 +220,16 @@ func (s *Service) IsLBPending(ctx context.Context, lbname string) (bool, error) 
 		s.scope.Info("VpsieMachine does not have an lb lbname")
 	}
 
-	pendingVms, err := s.scope.VpsieClients.Services.Pending.GetPendingVms(ctx)
+	pendingVms, err := s.scope.VpsieClients.Services.LB.ListPendingLBs(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get loadbalancer")
+		return nil, errors.Wrap(err, "failed to get loadbalancer")
 	}
 
 	for _, v := range pendingVms {
-		if v.Data.Hostname == lbname {
-			return true, nil
+		if v.Data.LbName == lbname {
+			return &v, nil
 		}
 	}
 
-	return false, nil
+	return nil, nil
 }

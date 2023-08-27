@@ -7,7 +7,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
 	github.com/pkg/errors v0.9.1
-	github.com/vpsie/govpsie v0.0.0-20230820130354-9cfa06fda8b3
+	github.com/vpsie/govpsie v0.0.0-20230827114709-4f5f2b30aed6
 	golang.org/x/oauth2 v0.10.0
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
