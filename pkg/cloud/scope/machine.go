@@ -10,15 +10,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/controllers/noderefutil"
 	capierrors "sigs.k8s.io/cluster-api/errors"
 	"sigs.k8s.io/cluster-api/util/patch"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type MachineScopeParams struct {
 	Client client.Client
 	Logger logr.Logger
+	VpsieClients
 
 	Machine      *clusterv1.Machine
 	Cluster      *clusterv1.Cluster
@@ -39,17 +41,24 @@ func NewMachineScope(params MachineScopeParams) (*MachineScope, error) {
 		return nil, errors.New("Cluster is required when creating a MachineScope")
 	}
 	if params.VpsieCluster == nil {
-		return nil, errors.New("DOCluster is required when creating a MachineScope")
+		return nil, errors.New("VpsieCluster is required when creating a MachineScope")
 	}
 	if params.VpsieMachine == nil {
-		return nil, errors.New("DOMachine is required when creating a MachineScope")
+		return nil, errors.New("VpsieMachine is required when creating a MachineScope")
 	}
 
 	helper, err := patch.NewHelper(params.VpsieMachine, params.Client)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init patch helper")
 	}
+
+	params.VpsieClients.Services, err = params.VpsieClients.Session()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Vpsie session")
+	}
+
 	return &MachineScope{
+		VpsieClients: params.VpsieClients,
 		client:       params.Client,
 		Cluster:      params.Cluster,
 		Machine:      params.Machine,
@@ -74,7 +83,7 @@ type MachineScope struct {
 }
 
 func (m *MachineScope) Close() error {
-	return nil
+	return m.patchHelper.Patch(context.TODO(), m.VpsieMachine)
 }
 
 // GetInstanceStatus returns the VpsieMachine instance status.
@@ -92,12 +101,14 @@ func (m *MachineScope) SetReady() {
 }
 
 func (m *MachineScope) GetInstanceID() *string {
-	parsed, err := noderefutil.NewProviderID(m.GetProviderID())
-	if err != nil {
-		return nil
-	}
 
-	return pointer.String(parsed.ID())
+	return m.VpsieMachine.Spec.ProviderID
+	// parsed, err := noderefutil.NewProviderID(m.GetProviderID())
+	// if err != nil {
+	// 	return nil
+	// }
+
+	// return pointer.String(parsed.ID())
 }
 
 func (m *MachineScope) GetProviderID() string {
@@ -133,6 +144,9 @@ func (m *MachineScope) SetAddresses(addrs []corev1.NodeAddress) {
 }
 
 func (m *MachineScope) GetBootstrapData() (string, error) {
+	logger := ctrl.LoggerFrom(context.Background())
+	logger.Info("Fetching Bootstarp data")
+
 	if m.Machine.Spec.Bootstrap.DataSecretName == nil {
 		return "", errors.New("Bootstrap.DataSecretName is nil")
 	}

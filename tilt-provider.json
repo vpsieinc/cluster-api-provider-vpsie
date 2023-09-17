@@ -2,13 +2,14 @@
     {
       "name": "vpsie",
       "config": {
-        "image": "cluster-api-vpsie-controller:dev",
+        "image": "localhost:5005/cluster-api-vpsie-controller:dev",
         "live_reload_deps": [
-          "main.go",
+          "cmd/main",
+          "main",
           "go.mod",
           "go.sum",
           "api",
-          "controllers",
+          "internal",
           "pkg"
         ],
         "label": "CAPVSI"

@@ -7,5 +7,5 @@ spec:
   template:
     spec:
       containers:
-      - image: cluster-api-vpsie-controller:dev
+      - image: localhost:5005/cluster-api-vpsie-controller:dev
         name: manager

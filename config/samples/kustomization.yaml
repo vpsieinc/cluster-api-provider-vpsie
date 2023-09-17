@@ -2,4 +2,5 @@
 resources:
 - infrastructure_v1alpha1_vpsiecluster.yaml
 - infrastructure_v1alpha1_vpsiemachine.yaml
+- infrastructure_v1alpha1_vpsiemachinetemplate.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

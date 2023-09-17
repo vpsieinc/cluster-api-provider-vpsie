@@ -82,6 +82,11 @@ func (s *ClusterScope) Name() string {
 	return s.Cluster.GetName()
 }
 
+// UID returns the cluster UID.
+func (s *ClusterScope) UID() string {
+	return string(s.Cluster.UID)
+}
+
 func (s *ClusterScope) NameSpace() string {
 	return s.Cluster.GetNamespace()
 }
@@ -99,11 +104,6 @@ func (s *ClusterScope) SetReady() {
 // APIServerLoadbalancers get the VpsieCluster Spec Network APIServerLoadbalancers.
 func (s *ClusterScope) APIServerLoadbalancers() *infrav1.LoadBalancer {
 	return &s.VpsieCluster.Spec.Network.APIServerLoadbalancers
-}
-
-// APIServerLoadbalancersRef get the VpsieCluster status Network APIServerLoadbalancersRef.
-func (s *ClusterScope) APIServerLoadbalancersRef() *infrav1.VpsieResourceReference {
-	return &s.VpsieCluster.Status.Network.APIServerLoadbalancersRef
 }
 
 // ControlPlaneEndpoint returns the cluster control-plane endpoint.

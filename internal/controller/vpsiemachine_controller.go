@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -95,10 +94,12 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	logger.Info("Cluster found", "cluster", cluster)
 	if cluster == nil {
 		logger.Info(fmt.Sprintf("Please associate this machine with a cluster using the label %s: <name of cluster>", clusterv1.ClusterNameLabel))
 		return ctrl.Result{}, nil
 	}
+
 	logger = logger.WithValues("cluster", cluster.Name)
 
 	vpsieCluster := &infrav1.VpsieCluster{}
@@ -107,6 +108,7 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		Name:      cluster.Spec.InfrastructureRef.Name,
 	}
 
+	logger.Info("CheckPoint-1")
 	if err = r.Client.Get(ctx, vpsieClusterName, vpsieCluster); err != nil {
 		logger.Error(err, "failed to get vpsie cluster")
 		return ctrl.Result{}, nil
@@ -118,6 +120,8 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
+	logger.Info("CheckPoint-2")
+
 	// Create the cluster scope
 	clusterScope, err := scope.NewClusterScope(scope.ClusterScopeParams{
 		Client:       r.Client,
@@ -126,6 +130,7 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		VpsieCluster: vpsieCluster,
 	})
 	if err != nil {
+		logger.Error(err, "failed to create cluster scope")
 		return reconcile.Result{}, err
 	}
 
@@ -138,14 +143,10 @@ func (r *VpsieMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		VpsieCluster: vpsieCluster,
 		VpsieMachine: vpsieMachine,
 	})
-	if err != nil {
-		return reconcile.Result{}, errors.Errorf("failed to create scope: %+v", err)
-	}
 
-	// Add finalizer first if not exist to avoid the race condition between init and delete
-	if !controllerutil.ContainsFinalizer(vpsieMachine, infrav1.MachineFinalizer) {
-		controllerutil.AddFinalizer(vpsieMachine, infrav1.MachineFinalizer)
-		return ctrl.Result{}, nil
+	if err != nil {
+		logger.Error(err, "failed to create machine scope")
+		return reconcile.Result{}, errors.Errorf("failed to create scope: %+v", err)
 	}
 
 	// Always close the scope when exiting this function so we can persist any vpsiemachine changes.
@@ -245,6 +246,9 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 
 	vpsiemachine := machineScope.VpsieMachine
 
+	// If the VpsieMachine doesn't have our finalizer, add it.
+	controllerutil.AddFinalizer(vpsiemachine, infrav1.MachineFinalizer)
+
 	// if the machine is already provisioned, return
 	if vpsiemachine.Spec.ProviderID != nil {
 		// ensure ready state is set.
@@ -272,57 +276,85 @@ func (r *VpsieMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 
 	vpsiesvc := vpsies.NewService(machineScope)
 
-	vpsie, err := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	vpsie, _ := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
+	// if err != nil {
+	// 	return ctrl.Result{}, err
+	// }
 
 	if vpsie == nil {
 
 		isPending, err := vpsiesvc.IsVmPending(ctx, machineScope.Name())
 		if err != nil {
+			logger.Error(err, "Reconcile error")
 			return ctrl.Result{}, err
 		}
 
-		if isPending {
-			logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
-			record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
+		if isPending != nil {
+			logger.Info("VpsieMachine instance is pending", "instance-id", machineScope.GetInstanceID())
+			record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", machineScope.GetInstanceID())
 			return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 		}
 
-		vpsie, err = vpsiesvc.CreateVpsie(ctx)
+		vpsie, err = vpsiesvc.GetVpsieByName(ctx, machineScope.Name())
 		if err != nil {
-			if err.Error() == "Vpsie is pending" {
-				logger.Info("VpsieMachine instance is pending", "instance-id", *machineScope.GetInstanceID())
-				record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", *machineScope.GetInstanceID())
-				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-			}
-
-			err = errors.Errorf("failed to create vpsie: %v", err)
+			logger.Error(err, "Reconcile error")
 			record.Warnf(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconcile error - %v", err)
-			machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(infrav1.InstanceStatusInActive))
 			return ctrl.Result{}, err
 		}
 
+		if vpsie == nil {
+			vpsie, err = vpsiesvc.CreateVpsie(ctx)
+			if err != nil {
+				if err.Error() == "Vpsie not found" {
+					logger.Info("Vpsie not found, checking in Pending")
+					// check if pending
+					pendingVm, err := vpsiesvc.IsVmPending(ctx, machineScope.Name())
+					if err != nil {
+						logger.Error(err, "Reconcile error")
+						return ctrl.Result{}, err
+					}
+
+					if pendingVm != nil {
+
+						machineScope.SetInstanceStatus(infrav1.InstanceStatusPending)
+
+						logger.Info("VpsieMachine instance is pending", "instance-id", machineScope.GetInstanceID())
+						record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is pending - instance-id: %s", machineScope.GetInstanceID())
+						return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+					}
+				}
+
+				err = errors.Errorf("failed to create vpsie: %v", err)
+				record.Warnf(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconcile error - %v", err)
+				machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(infrav1.InstanceStatusInActive))
+				return ctrl.Result{}, err
+			}
+		}
+
+		logger.Info("Vpsie Created", "instance", vpsie)
 		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is created - instance: %s", vpsie.NodeID)
 	}
 
-	machineScope.SetProviderID(strconv.Itoa(vpsie.ID))
-	machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(vpsie.IsActive))
+	logger.Info("Vpsie Created Now updating status", "instance", vpsie)
+	machineScope.SetProviderID(vpsie.Identifier)
+	machineScope.SetInstanceStatus(infrav1.VpsieInstanceStatus(fmt.Sprint(vpsie.IsActive)))
 
+	logger.Info("Getting Address")
 	addrs, err := vpsiesvc.GetVpsieAddress(vpsie)
 	if err != nil {
 		machineScope.SetFailureMessage(errors.New("failed to getting droplet address"))
 		return ctrl.Result{}, err
 	}
+	logger.Info("Getting Address Done", "address", addrs)
 	machineScope.SetAddresses(addrs)
 
 	vmState := *machineScope.GetInstanceStatus()
 
+	logger.Info("VpsieMachine instance status", "instance-id", machineScope.GetInstanceID(), "status", vmState)
 	switch vmState {
 	case infrav1.InstanceStatusActive:
-		logger.Info("VpsieMachine instance is running", "instance-id", *machineScope.GetInstanceID())
-		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is running - instance-id: %s", *machineScope.GetInstanceID())
+		logger.Info("VpsieMachine instance is running", "instance-id", machineScope.GetInstanceID())
+		record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is running - instance-id: %s", machineScope.GetInstanceID())
 		record.Event(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconciled")
 		machineScope.SetReady()
 		return ctrl.Result{}, nil
@@ -338,10 +370,10 @@ func (r *VpsieMachineReconciler) reconcileDelete(ctx context.Context, machineSco
 	logger.Info("Reconciling VpsieMachine deletion")
 
 	vpsiesvc := vpsies.NewService(machineScope)
-	vpsie, err := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
-	if err != nil {
-		return ctrl.Result{}, nil
-	}
+	vpsie, _ := vpsiesvc.GetVpsie(ctx, machineScope.GetInstanceID())
+	// if err != nil {
+	// 	return ctrl.Result{}, nil
+	// }
 
 	if vpsie != nil {
 		if err := vpsiesvc.Delete(ctx, machineScope.GetInstanceID()); err != nil {
@@ -354,8 +386,15 @@ func (r *VpsieMachineReconciler) reconcileDelete(ctx context.Context, machineSco
 		record.Event(machineScope.VpsieMachine, "VpsieMachineReconcile", "Reconciled")
 	}
 
-	record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is deleted - instance-id: %s", *machineScope.GetInstanceID())
+	logger.Info("VpsieMachine instance is deleted", "machineScope", machineScope.VpsieMachine)
+
+	logger.Info("check spec", "spec", machineScope.VpsieMachine.Spec)
+	instanceID := machineScope.GetInstanceID()
+
+	logger.Info("Deleting VpsieMachine instance", "instance-id", instanceID)
+	record.Eventf(machineScope.VpsieMachine, "VpsieMachineReconcile", "VpsieMachine instance is deleted - instance-id: %s", instanceID)
 	// Cluster is deleted so remove the finalizer.
+	logger.Info("remove finailzer")
 	controllerutil.RemoveFinalizer(machineScope.VpsieMachine, infrav1.MachineFinalizer)
 	return ctrl.Result{}, nil
 }

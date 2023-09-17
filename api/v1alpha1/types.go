@@ -1,13 +1,19 @@
 package v1alpha1
 
+import (
+	"strings"
+
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+)
+
 type VpsieResourceStatus string
 
 type VpsieInstanceStatus string
 
 var (
-	InstanceStatusActive = VpsieInstanceStatus(1)
+	InstanceStatusActive = VpsieInstanceStatus("1")
 
-	InstanceStatusInActive = VpsieInstanceStatus(0)
+	InstanceStatusInActive = VpsieInstanceStatus("0")
 
 	InstanceStatusPending = VpsieInstanceStatus("pending")
 
@@ -20,18 +26,33 @@ var (
 	InstanceStatusDeleted = VpsieInstanceStatus("deleted")
 )
 
+type VpsieMachineTemplateResource struct {
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
+	ObjectMeta clusterv1.ObjectMeta `json:"metadata,omitempty"`
+
+	// Spec is the specification of the desired behavior of the machine.
+	Spec VpsieMachineSpec `json:"spec"`
+}
+
 // VpsieResourceReference is a reference to a Vpsie resource.
 type VpsieResourceReference struct {
-	// ID of Vpsie resource
 	// +optional
 	ID string `json:"id,omitempty"`
 }
 
 // VpsieNetworkResource encapsulates Vpsie networking resources.
 type VpsieNetworkResource struct {
-	// APIServerLoadbalancersRef is the id of apiserver loadbalancers.
+	// ID of Vpsie resource
 	// +optional
-	APIServerLoadbalancersRef VpsieResourceReference `json:"apiServerLoadbalancersRef,omitempty"`
+	ID string `json:"id,omitempty"`
+
+	// +optional
+	Name *string `json:"name,omitempty"`
+
+	// +optional
+	Status string `json:"status,omitempty"`
 }
 
 // NetworkSpec encapsulates all things related to Vpsie network.
@@ -151,7 +172,7 @@ var (
 	// DefaultLBPort default LoadBalancer port.
 	DefaultLBPort = 6443
 	// DefaultLBAlgorithm default LoadBalancer algorithm.
-	DefaultLBAlgorithm = "roundrobin"
+	DefaultLBAlgorithm = "round_robin"
 	// DefaultLBHealthCheckInterval default LoadBalancer health check interval.
 	DefaultLBHealthCheckInterval = 1000
 	// DefaultLBHealthCheckTimeout default LoadBalancer health check timeout.
@@ -186,6 +207,11 @@ func (v *LoadBalancer) ApplyDefaults() {
 	if v.HealthCheck.Interval == 0 {
 		v.HealthCheck.Interval = DefaultLBHealthCheckInterval
 	}
+}
+
+func SafeName(name string) string {
+	r := strings.NewReplacer(".", "-", "/", "-")
+	return r.Replace(name)
 }
 
 // VpsieLoadBalancerHealthCheck define the Vpsie loadbalancers health check configurations.

@@ -49,6 +49,9 @@ spec:
                 - host
                 - port
                 type: object
+              dcIdentifier:
+                description: The Vpsie dcIdentifier the cluster lives in.
+                type: string
               network:
                 description: NetworkSpec encapsulates all things related to Vpsie
                   network.
@@ -191,9 +194,6 @@ spec:
                 description: Project is the name of the project to deploy the cluster
                   to.
                 type: string
-              region:
-                description: The Vpsie Region the cluster lives in.
-                type: string
             required:
             - project
             type: object
@@ -203,17 +203,15 @@ spec:
               network:
                 description: Network encapsulates all things related to Vpsie network.
                 properties:
-                  apiServerLoadbalancersRef:
-                    description: APIServerLoadbalancersRef is the id of apiserver
-                      loadbalancers.
-                    properties:
-                      id:
-                        description: ID of Vpsie resource
-                        type: string
-                    type: object
+                  id:
+                    description: ID of Vpsie resource
+                    type: string
+                  name:
+                    type: string
+                  status:
+                    type: string
                 type: object
               ready:
-                default: falctrl.SetupSignalHandler()se
                 description: Ready indicates that the cluster is ready.
                 type: boolean
             type: object

@@ -1,0 +1,119 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: kubecontest
+  namespace: default
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: kubecontest-control-plane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: VpsieCluster
+    name: kubecontest
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VpsieCluster
+metadata:
+  name: kubecontest
+  namespace: default
+spec:
+  dcIdentifier: 9e18689c-d12d-11e9-b4ba-005056aadd24
+  network:
+    apiServerLoadbalancers:
+      resourceIdentifier: 5c40ca2b-c525-4303-b17c-964212532402
+  project: "71128"
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: kubecontest-control-plane
+  namespace: default
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      controllerManager:
+        extraArgs:
+          enable-hostpath-provisioner: "true"
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: vpsie
+        name: '{{ ds.meta_data["local_hostname"] }}'
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: vpsie
+        name: '{{ ds.meta_data["local_hostname"] }}'
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+      kind: VpsieMachineTemplate
+      name: kubecontest-control-plane
+  replicas: 1
+  version: v1.23.0
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VpsieMachineTemplate
+metadata:
+  name: kubecontest-control-plane
+  namespace: default
+spec:
+  template:
+    spec:
+      osIdentifier: 17e21ee5-37df-11ee-8bba-0050569c68dc
+      vpsiePlan: d7b59bf6-c469-11eb-8ef8-0050569c68dc
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: kubecontest-md-0
+  namespace: default
+spec:
+  clusterName: kubecontest
+  replicas: 1
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: kubecontest-md-0
+      clusterName: kubecontest
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: VpsieMachineTemplate
+        name: kubecontest-md-0
+      version: v1.23.0
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VpsieMachineTemplate
+metadata:
+  name: kubecontest-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      osIdentifier: 17e21ee5-37df-11ee-8bba-0050569c68dc
+      vpsiePlan: d7b59bf6-c469-11eb-8ef8-0050569c68dc
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: kubecontest-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-provider: vpsie
+          name: '{{ ds.meta_data["local_hostname"] }}'
