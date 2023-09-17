@@ -38,22 +38,21 @@ type VpsieMachineTemplateResource struct {
 
 // VpsieResourceReference is a reference to a Vpsie resource.
 type VpsieResourceReference struct {
+	// +optional
+	ID string `json:"id,omitempty"`
+}
+
+// VpsieNetworkResource encapsulates Vpsie networking resources.
+type VpsieNetworkResource struct {
 	// ID of Vpsie resource
 	// +optional
 	ID string `json:"id,omitempty"`
 
 	// +optional
-	Name string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 
 	// +optional
 	Status string `json:"status,omitempty"`
-}
-
-// VpsieNetworkResource encapsulates Vpsie networking resources.
-type VpsieNetworkResource struct {
-	// APIServerLoadbalancersRef is the id of apiserver loadbalancers.
-	// +optional
-	APIServerLoadbalancersRef VpsieResourceReference `json:"apiServerLoadbalancersRef,omitempty"`
 }
 
 // NetworkSpec encapsulates all things related to Vpsie network.

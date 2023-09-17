@@ -106,11 +106,6 @@ func (s *ClusterScope) APIServerLoadbalancers() *infrav1.LoadBalancer {
 	return &s.VpsieCluster.Spec.Network.APIServerLoadbalancers
 }
 
-// APIServerLoadbalancersRef get the VpsieCluster status Network APIServerLoadbalancersRef.
-func (s *ClusterScope) APIServerLoadbalancersRef() *infrav1.VpsieResourceReference {
-	return &s.VpsieCluster.Status.Network.APIServerLoadbalancersRef
-}
-
 // ControlPlaneEndpoint returns the cluster control-plane endpoint.
 func (s *ClusterScope) ControlPlaneEndpoint() clusterv1.APIEndpoint {
 	endpoint := s.VpsieCluster.Spec.ControlPlaneEndpoint

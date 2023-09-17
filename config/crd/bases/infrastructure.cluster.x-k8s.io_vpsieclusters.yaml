@@ -203,14 +203,13 @@ spec:
               network:
                 description: Network encapsulates all things related to Vpsie network.
                 properties:
-                  apiServerLoadbalancersRef:
-                    description: APIServerLoadbalancersRef is the id of apiserver
-                      loadbalancers.
-                    properties:
-                      id:
-                        description: ID of Vpsie resource
-                        type: string
-                    type: object
+                  id:
+                    description: ID of Vpsie resource
+                    type: string
+                  name:
+                    type: string
+                  status:
+                    type: string
                 type: object
               ready:
                 description: Ready indicates that the cluster is ready.

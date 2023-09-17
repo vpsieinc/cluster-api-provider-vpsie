@@ -20,24 +20,33 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get bootstrap data")
 	}
+
 	instancename := s.scope.Name()
 
 	scriptRequest := govpsie.CreateScriptRequest{
 		Name:          instancename,
 		ScriptContent: bootstrapdata,
 		ScriptType:    "bash",
+		Tags: []string{
+			"bootstraped-scripts",
+		},
 	}
 
+	logger.Info("Create a script", "script", scriptRequest)
 	err = s.scope.VpsieClients.Services.Scripts.CreateScript(ctx, &scriptRequest)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create script")
 	}
+
+	logger.Info("create-vm-check-point-1")
 
 	// list scripts and search for the one we just created
 	scripts, err := s.scope.VpsieClients.Services.Scripts.GetScripts(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list scripts")
 	}
+
+	logger.Info("create-vm-check-point-2")
 
 	var script *govpsie.Script
 	for _, v := range scripts {
@@ -46,6 +55,8 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 			break
 		}
 	}
+
+	logger.Info("create-vm-check-point-3")
 
 	projectid, _ := strconv.Atoi(s.scope.VpsieCluster.Spec.Project)
 	request := &govpsie.CreateVpsieRequest{
@@ -59,8 +70,14 @@ func (s *Service) CreateVpsie(ctx context.Context) (*govpsie.VmData, error) {
 		AddPrivateIp:       1,
 		BackupEnabled:      1,
 		ScriptIdentifier:   script.Identifier,
+		Notes:              "creating vm for cluster api",
+		Tags: []string{
+			"cluster-api-vm",
+		},
+		SshKeyIdentifier: "6f992c35-daa9-11ed-8b5c-0050569c68dc",
 	}
 
+	logger.Info("create-vm-check-point-4")
 	err = s.scope.VpsieClients.Services.Vpsie.CreateVpsie(ctx, request)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Vpsie")
@@ -129,6 +146,7 @@ func (s *Service) Delete(ctx context.Context, id *string) error {
 
 	if id == nil {
 		s.scope.Info("VpsieMachine does not have an instance id")
+		return nil
 	}
 
 	err := s.scope.VpsieClients.Services.Vpsie.DeleteVpsie(ctx, *id)
@@ -149,22 +167,32 @@ func (s *Service) IsVmPending(ctx context.Context, hostname string) (*govpsie.Pe
 		s.scope.Info("VpsieMachine does not have an instance hostname")
 	}
 
+	logger.Info("loggic before sending request", "vpsie-clients", s.scope.VpsieClients)
+	logger.Info("loggic before sending request", "service", s.scope.VpsieClients.Services)
+	logger.Info("loggic before sending request", "pending", s.scope.VpsieClients.Services.Pending)
+
 	pendingVms, err := s.scope.VpsieClients.Services.Pending.GetPendingVms(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get Vpsie")
 	}
 
+	logger.Info("All PendingVms", "PendingVms", pendingVms)
+
 	for _, v := range pendingVms {
+		logger.Info("PendingVm", "PendingVm", v)
 		if v.Data.Hostname == hostname {
 			return &v, nil
 		}
 	}
 
+	logger.Info("NO Pending found")
 	return nil, nil
 }
 
 func (s *Service) GetVpsieByName(ctx context.Context, hostName string) (*govpsie.VmData, error) {
 	// list and find it by name
+	logger := log.FromContext(ctx)
+	logger.Info("Loging for vm by name", "Name", hostName)
 
 	vpsies, err := s.scope.VpsieClients.Services.Vpsie.ListVpsie(ctx, &govpsie.ListOptions{}, s.scope.VpsieCluster.Spec.Project)
 	if err != nil {
@@ -172,10 +200,12 @@ func (s *Service) GetVpsieByName(ctx context.Context, hostName string) (*govpsie
 	}
 
 	for _, v := range vpsies {
+		logger.Info("Vpsie", "Vpsie", v)
 		if v.Hostname == hostName {
 			return &v, nil
 		}
 	}
 
+	logger.Info("NO Vpsie found in Looking by name")
 	return nil, nil
 }

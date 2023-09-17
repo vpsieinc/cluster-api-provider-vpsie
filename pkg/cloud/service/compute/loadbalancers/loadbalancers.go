@@ -20,8 +20,12 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 	apiServerLoadbalancer.ApplyDefaults()
 
-	apiServerLoadbalancerRef := s.scope.APIServerLoadbalancersRef()
+	apiServerLoadbalancerRef := s.scope.Network()
 	lbUUID := apiServerLoadbalancerRef.ID
+
+	clusterName := infrav1.SafeName(s.scope.Name())
+	name := clusterName + "-" + s.scope.UID()
+	apiServerLoadbalancer.LbName = name
 
 	if apiServerLoadbalancer.ID != "" {
 		lbUUID = apiServerLoadbalancer.ID
@@ -33,9 +37,9 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	// }
 
 	if loadbalancer == nil {
-
-		if apiServerLoadbalancerRef.Name != "" {
-			pendingLB, err := s.IsLBPending(ctx, apiServerLoadbalancerRef.Name)
+		logger.Info("LoadBalancer Ref Name", "Name", apiServerLoadbalancerRef)
+		if apiServerLoadbalancerRef.Name != nil {
+			pendingLB, err := s.IsLBPending(ctx, *apiServerLoadbalancerRef.Name)
 			if err != nil {
 				return errors.Wrap(err, "failed to get loadbalancer")
 			}
@@ -45,8 +49,8 @@ func (s *Service) Reconcile(ctx context.Context) error {
 				return errors.New("LoadBalancer Pending")
 			}
 
-			loadbalancer, err = s.GetLBByName(ctx, apiServerLoadbalancerRef.Name)
-			if err != nil {
+			loadbalancer, err = s.GetLBByName(ctx, *apiServerLoadbalancerRef.Name)
+			if err != nil || loadbalancer == nil {
 				return errors.Wrap(err, "failed to get loadbalancer")
 			}
 		} else {
@@ -56,20 +60,24 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			}
 
 			if loadbalancer == nil {
-				pendingLB , err := s.IsLBPending(ctx, "name")
+				pendingLB, err := s.IsLBPending(ctx, name)
 				// update name, status
 				if err != nil {
+					logger.Error(err, "failed to get loadbalancer")
 					return errors.Wrap(err, "failed to get loadbalancer")
 				}
-				apiServerLoadbalancerRef.Name = pendingLB.Data.LbName
+				// TODO: remot the log
+				logger.Info("LoadBalancer Pending-check", "pendingLB", pendingLB)
+				apiServerLoadbalancerRef.Name = &name
 				apiServerLoadbalancerRef.Status = "Pending"
 				return errors.New("LoadBalancer Pending")
 			}
 
-
 			record.Eventf(s.scope.VpsieCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancers - %s", loadbalancer.LBName)
 		}
 	}
+
+	logger.Info("created loadbalancer", "loadbalancer", loadbalancer)
 
 	apiServerLoadbalancerRef.ID = loadbalancer.Identifier
 	apiServerLoadbalancerRef.Status = "Running"
@@ -91,22 +99,22 @@ func (s *Service) Delete(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Deleting loadbalancer resources")
 
-	apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
+	// apiServerLoadbalancer := s.scope.APIServerLoadbalancers()
 
-	loadbalancer, err := s.GetLB(ctx, apiServerLoadbalancer.ID)
-	if err != nil {
-		return nil
-	}
+	// loadbalancer, err := s.GetLB(ctx, apiServerLoadbalancer.ID)
+	// if err != nil {
+	// 	return nil
+	// }
 
-	if loadbalancer == nil {
-		logger.Info("Unable to locate load balancer")
-		record.Eventf(s.scope.VpsieCluster, corev1.EventTypeWarning, "NoLoadBalancerFound", "Unable to find matching load balancer")
-		return nil
-	}
+	// if loadbalancer == nil {
+	// 	logger.Info("Unable to locate load balancer")
+	// 	record.Eventf(s.scope.VpsieCluster, corev1.EventTypeWarning, "NoLoadBalancerFound", "Unable to find matching load balancer")
+	// 	return nil
+	// }
 
-	if err := s.DeleteLoadBalancer(ctx, loadbalancer.Identifier); err != nil {
-		return errors.Wrapf(err, "error deleting load balancer for DOCluster %s/%s", s.scope.VpsieCluster.Namespace, s.scope.VpsieCluster.Name)
-	}
+	// if err := s.DeleteLoadBalancer(ctx, loadbalancer.Identifier); err != nil {
+	// 	return errors.Wrapf(err, "error deleting load balancer for VpsieCluster %s/%s", s.scope.VpsieCluster.Namespace, s.scope.VpsieCluster.Name)
+	// }
 
 	return nil
 }
@@ -117,9 +125,6 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 
 	logger.Info("before creation")
 	logger.Info("before creation", "rules", lbSpec.Rules)
-
-	clusterName := infrav1.SafeName(s.scope.Name())
-	name := clusterName + "-" + s.scope.UID()
 
 	rules := make([]govpsie.Rule, len(lbSpec.Rules))
 	for i, obj := range lbSpec.Rules {
@@ -145,7 +150,7 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 		Rule:      rules,
 		Algorithm: lbSpec.Algorithm,
 		// HealthCheckPath:    lbSpec.HealthCheck.HealthyPath,
-		LBName:             name,
+		LBName:             lbSpec.LbName,
 		DcIdentifier:       s.scope.VpsieCluster.Spec.DcIdentifier,
 		ResourceIdentifier: lbSpec.ResourceIdentifier,
 		// CheckInterval:      lbSpec.HealthCheck.Interval,
@@ -172,12 +177,13 @@ func (s *Service) CreateLB(ctx context.Context, lbSpec *v1alpha1.LoadBalancer) (
 	for _, lb := range allLBs {
 		logger.Info("during list all", "lb", lb)
 
-		if lb.LBName == name {
+		if lb.LBName == lbSpec.LbName {
 			CreatedLB = &lb
 			break
 		}
 	}
 
+	logger.Info("created lb", "created lb", CreatedLB)
 	return CreatedLB, nil
 }
 
@@ -220,12 +226,15 @@ func (s *Service) IsLBPending(ctx context.Context, lbname string) (*govpsie.Pend
 		s.scope.Info("VpsieMachine does not have an lb lbname")
 	}
 
-	pendingVms, err := s.scope.VpsieClients.Services.LB.ListPendingLBs(ctx)
+	pendingLBS, err := s.scope.VpsieClients.Services.LB.ListPendingLBs(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get loadbalancer")
 	}
 
-	for _, v := range pendingVms {
+	logger.Info("pendingLBS", "pendingLBs", pendingLBS)
+
+	for _, v := range pendingLBS {
+		logger.Info("pendingLBS", "curnet-pendingLBS", v)
 		if v.Data.LbName == lbname {
 			return &v, nil
 		}

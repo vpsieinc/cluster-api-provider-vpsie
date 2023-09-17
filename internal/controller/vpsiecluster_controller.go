@@ -75,12 +75,14 @@ func (r *VpsieClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	defer cancel()
 
 	logger := log.FromContext(ctx)
-
+	logger.Info("Reconciling VpsieCluster", "request", req)
 	vpsieCluster := &infrav1.VpsieCluster{}
 	if err := r.Get(ctx, req.NamespacedName, vpsieCluster); err != nil {
 		if apierrors.IsNotFound(err) {
+			logger.Info("VpsieCluster resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
+		logger.Error(err, "Failed to get VpsieCluster")
 		return ctrl.Result{}, err
 	}
 
@@ -93,6 +95,8 @@ func (r *VpsieClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Info("Waiting for Cluster Controller to set OwnerRef on VpsieCluster")
 		return ctrl.Result{}, nil
 	}
+
+	logger.Info("Found Cluster", "cluster", klog.KObj(cluster))
 
 	logger = logger.WithValues("cluster", klog.KObj(cluster))
 	ctx = ctrl.LoggerInto(ctx, logger)
@@ -163,7 +167,23 @@ func (r *VpsieClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 	err := loadbalancersvc.Reconcile(ctx)
 	if err != nil {
 		if err.Error() == "LoadBalancer Pending" {
-			logger.Info("LOadBalancer is in Pending state")
+			apiServerLoadbalancerRef := clusterScope.Network()
+
+			clusterName := infrav1.SafeName(clusterScope.Name())
+			name := clusterName + "-" + clusterScope.UID()
+
+			logger.Info("name-tobe created", "name", name)
+			logger.Info("apiServerLoadbalancerRef", "apiServerLoadbalancerRef", apiServerLoadbalancerRef)
+
+			clusterScope.VpsieCluster.Status.Network.Name = &name
+			clusterScope.VpsieCluster.Status.Network.Status = apiServerLoadbalancerRef.Status
+			clusterScope.VpsieCluster.Status.Network = *apiServerLoadbalancerRef
+			if err := r.Status().Update(ctx, clusterScope.VpsieCluster); err != nil {
+				logger.Error(err, "unable to update VpsieCluster status")
+				return ctrl.Result{}, err
+			}
+
+			logger.Info("LoadBalancer is in Pending state - requeue for 60 sec")
 			record.Event(clusterScope.VpsieCluster, "VpsieClusterReconcile", "Waiting for load-balancer")
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
@@ -173,6 +193,7 @@ func (r *VpsieClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 		return ctrl.Result{}, err
 	}
 
+	logger.Info("Reconilation is going good")
 	controlPlaneEndpoint := clusterScope.ControlPlaneEndpoint()
 
 	if controlPlaneEndpoint.Host == "" {
